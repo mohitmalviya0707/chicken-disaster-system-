@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🐔 Chicken Disease Classifier</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 600px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            font-size: 2rem;
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 30px;
+            font-size: 0.9rem;
+        }
+
+        .upload-area {
+            border: 3px dashed #764ba2;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #f8f4ff;
+            margin-bottom: 20px;
+        }
+
+        .upload-area:hover { background: #ede8ff; border-color: #667eea; }
+        .upload-area.drag-over { background: #ede8ff; transform: scale(1.02); }
+
+        .upload-icon { font-size: 3rem; margin-bottom: 10px; }
+        .upload-text { color: #555; font-size: 1rem; }
+        .upload-text span { color: #764ba2; font-weight: 600; cursor: pointer; }
+
+        #fileInput { display: none; }
+
+        #preview {
+            display: none;
+            width: 100%;
+            max-height: 300px;
+            object-fit: contain;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border: 2px solid #eee;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 10px;
+        }
+
+        .btn-predict {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .btn-predict:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(102,126,234,0.5); }
+        .btn-predict:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+        .btn-train { background: #f0f0f0; color: #555; }
+        .btn-train:hover { background: #e0e0e0; }
+
+        .result-card {
+            display: none;
+            background: linear-gradient(135deg, #f6f9fc, #eef2f7);
+            border-radius: 15px;
+            padding: 25px;
+            margin-top: 20px;
+            border-left: 5px solid #764ba2;
+        }
+
+        .result-label { font-size: 0.85rem; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+        .result-disease { font-size: 1.8rem; font-weight: 700; color: #333; margin: 5px 0; }
+        .result-confidence { font-size: 1rem; color: #764ba2; font-weight: 600; }
+
+        .probabilities { margin-top: 15px; }
+        .prob-bar { margin-bottom: 10px; }
+        .prob-label { display: flex; justify-content: space-between; font-size: 0.85rem; color: #555; margin-bottom: 3px; }
+        .prob-track { background: #e0e0e0; border-radius: 10px; height: 8px; overflow: hidden; }
+        .prob-fill { height: 100%; background: linear-gradient(135deg, #667eea, #764ba2); border-radius: 10px; transition: width 1s ease; }
+
+        .status-badge {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-top: 10px;
+        }
+        .healthy { background: #d4edda; color: #155724; }
+        .diseased { background: #f8d7da; color: #721c24; }
+
+        .loading { display: none; text-align: center; padding: 20px; }
+        .spinner {
+            width: 40px; height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #764ba2;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>🐔 Chicken Disease Classifier</h1>
+    <p class="subtitle">Upload a fecal image to detect: Coccidiosis | Salmonella | New Castle Disease | Healthy</p>
+
+    <div class="upload-area" id="dropZone" onclick="document.getElementById('fileInput').click()">
+        <div class="upload-icon">📷</div>
+        <div class="upload-text">
+            Drag & Drop image here or <span>Browse</span>
+        </div>
+        <div style="color:#aaa; font-size:0.8rem; margin-top:8px">Supports: JPG, PNG, JPEG</div>
+    </div>
+
+    <input type="file" id="fileInput" accept="image/*">
+    <img id="preview" alt="Preview">
+
+    <button class="btn btn-predict" id="predictBtn" onclick="predict()" disabled>
+        🔍 Analyze Disease
+    </button>
+    <button class="btn btn-train" onclick="train()">
+        🏋️ Train Model (Admin)
+    </button>
+
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <p style="color:#764ba2; font-weight:600">Analyzing image...</p>
+    </div>
+
+    <div class="result-card" id="resultCard">
+        <div class="result-label">Detected Condition</div>
+        <div class="result-disease" id="resultDisease">-</div>
+        <div class="result-confidence" id="resultConfidence">-</div>
+        <div id="statusBadge"></div>
+        <div class="probabilities" id="probabilities"></div>
+    </div>
+</div>
+
+<script>
+    let base64Image = '';
+
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const preview = document.getElementById('preview');
+    const predictBtn = document.getElementById('predictBtn');
+
+    fileInput.addEventListener('change', handleFile);
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('drag-over');
+        const file = e.dataTransfer.files[0];
+        if (file) processFile(file);
+    });
+
+    function handleFile(e) {
+        const file = e.target.files[0];
+        if (file) processFile(file);
+    }
+
+    function processFile(file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            base64Image = e.target.result.split(',')[1];
+            preview.src = e.target.result;
+            preview.style.display = 'block';
+            predictBtn.disabled = false;
+            document.getElementById('resultCard').style.display = 'none';
+        };
+        reader.readAsDataURL(file);
+    }
+
+    async function predict() {
+        if (!base64Image) return;
+
+        document.getElementById('loading').style.display = 'block';
+        document.getElementById('resultCard').style.display = 'none';
+        predictBtn.disabled = true;
+
+        try {
+            const response = await fetch('/predict', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image: base64Image })
+            });
+            const data = await response.json();
+            displayResult(data[0]);
+        } catch (error) {
+            alert('Error: Could not connect to model server. Make sure the Flask app is running.');
+        }
+
+        document.getElementById('loading').style.display = 'none';
+        predictBtn.disabled = false;
+    }
+
+    function displayResult(data) {
+        const card = document.getElementById('resultCard');
+        document.getElementById('resultDisease').textContent = data.image;
+        document.getElementById('resultConfidence').textContent = `Confidence: ${data.confidence}`;
+
+        const badge = document.getElementById('statusBadge');
+        if (data.image === 'Healthy') {
+            badge.innerHTML = '<span class="status-badge healthy">✅ No Disease Detected</span>';
+        } else {
+            badge.innerHTML = '<span class="status-badge diseased">⚠️ Disease Detected - Consult Vet</span>';
+        }
+
+        const probDiv = document.getElementById('probabilities');
+        probDiv.innerHTML = '<div style="font-size:0.85rem;color:#888;margin-bottom:8px;font-weight:600">ALL PROBABILITIES</div>';
+
+        if (data.all_probabilities) {
+            Object.entries(data.all_probabilities).forEach(([cls, prob]) => {
+                const pct = parseFloat(prob);
+                probDiv.innerHTML += `
+                    <div class="prob-bar">
+                        <div class="prob-label"><span>${cls}</span><span>${prob}</span></div>
+                        <div class="prob-track"><div class="prob-fill" style="width:${pct}%"></div></div>
+                    </div>`;
+            });
+        }
+
+        card.style.display = 'block';
+    }
+
+    async function train() {
+        if (!confirm('Start model training? This may take several minutes.')) return;
+        const response = await fetch('/train');
+        const text = await response.text();
+        alert(text);
+    }
+</script>
+</body>
+</html>
